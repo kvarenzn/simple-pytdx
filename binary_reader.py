@@ -6,6 +6,7 @@ import io
 class BinaryReader:
     _io: BinaryIO
     _big_endian: bool
+    _file_size: int
 
     _SUPPORTED_TYPES = {
         'u8': 'B',
@@ -23,9 +24,15 @@ class BinaryReader:
     def __init__(self, _io: BinaryIO, big_endian: bool = True):
         self._io = _io
         self._big_endian = big_endian
+        self._file_size = self._io.seek(0, io.SEEK_END)
+        self._io.seek(0, io.SEEK_SET)
 
     def read(self, size: int) -> bytes:
         return self._io.read(size)
+
+    @property
+    def eof(self) -> bool:
+        return self._io.tell() >= self._file_size
 
     @property
     def pos(self) -> int:

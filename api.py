@@ -3,12 +3,43 @@ import socket
 import struct
 import zlib
 from enum import Enum
-from typing import Any
+from typing import Any, BinaryIO, NamedTuple
 from pprint import pprint
 import datetime
 
 from binary_reader import BinaryReader
 
+
+def _format_time(timestamp: int) -> str:
+    timestamp = str(timestamp)
+    time = timestamp[:-6] + ':'
+    if int(timestamp[-6:-4]) < 60:
+        time += f'{timestamp[-6:-4]}:{int(timestamp[-4:] * 60) / 10000:06.3f}'
+    else:
+        time += f'{int(int(timestamp[-6:]) * 60 / 1000000):02d}:{(int(timestamp[-6:]) * 60 % 1000000) * 60 / 1000000:06.3f}'
+    return time
+
+
+def _get_time(reader: BinaryReader) -> datetime.time:
+    tminutes = reader.u16
+    return datetime.time(tminutes // 60, tminutes % 60)
+
+
+def _calc_price(base_value: float, offset: float) -> float:
+    return (base_value + offset) / 100
+
+
+def _calc_price1k(base_value: float, offset: float) -> float:
+    return (base_value + offset) / 1000
+
+class DataEntry(NamedTuple):
+    date: datetime.datetime
+    price_open: float
+    price_high: float
+    price_low: float
+    price_close: float
+    amount: float
+    volume: float
 
 class Api:
     class Market(Enum):
@@ -89,12 +120,12 @@ class Api:
                 '市场': self.Market(market),
                 '股票代码': stock,
                 'active1': active1,
-                '股价': self._calc_price(price, 0),
-                '昨日收盘价': self._calc_price(price, reader.vint),
-                '今日开盘价': self._calc_price(price, reader.vint),
-                '最高价': self._calc_price(price, reader.vint),
-                '最低价': self._calc_price(price, reader.vint),
-                '服务器时间': self._format_time(reader.vint),
+                '股价': _calc_price(price, 0),
+                '昨日收盘价': _calc_price(price, reader.vint),
+                '今日开盘价': _calc_price(price, reader.vint),
+                '最高价': _calc_price(price, reader.vint),
+                '最低价': _calc_price(price, reader.vint),
+                '服务器时间': _format_time(reader.vint),
                 'reserved_bytes1': reader.vint,
                 '成交量': reader.vint,
                 '当前成交量': reader.vint,
@@ -103,24 +134,24 @@ class Api:
                 '外盘': reader.vint,
                 'reserved_bytes2': reader.vint,
                 'reserved_bytes3': reader.vint,
-                '买1': self._calc_price(price, reader.vint),
-                '卖1': self._calc_price(price, reader.vint),
+                '买1': _calc_price(price, reader.vint),
+                '卖1': _calc_price(price, reader.vint),
                 '买1成交量': reader.vint,
                 '卖1成交量': reader.vint,
-                '买2': self._calc_price(price, reader.vint),
-                '卖2': self._calc_price(price, reader.vint),
+                '买2': _calc_price(price, reader.vint),
+                '卖2': _calc_price(price, reader.vint),
                 '买2成交量': reader.vint,
                 '卖2成交量': reader.vint,
-                '买3': self._calc_price(price, reader.vint),
-                '卖3': self._calc_price(price, reader.vint),
+                '买3': _calc_price(price, reader.vint),
+                '卖3': _calc_price(price, reader.vint),
                 '买3成交量': reader.vint,
                 '卖3成交量': reader.vint,
-                '买4': self._calc_price(price, reader.vint),
-                '卖4': self._calc_price(price, reader.vint),
+                '买4': _calc_price(price, reader.vint),
+                '卖4': _calc_price(price, reader.vint),
                 '买4成交量': reader.vint,
                 '卖4成交量': reader.vint,
-                '买5': self._calc_price(price, reader.vint),
-                '卖5': self._calc_price(price, reader.vint),
+                '买5': _calc_price(price, reader.vint),
+                '卖5': _calc_price(price, reader.vint),
                 '买5成交量': reader.vint,
                 '卖5成交量': reader.vint,
                 'reserved_bytes4': reader.u16,
@@ -153,16 +184,16 @@ class Api:
                 price_close_diff = reader.vint
                 price_high_diff = reader.vint
                 price_low_diff = reader.vint
-                price_open = self._calc_price1k(price_open_diff, pre_diff_base)
+                price_open = _calc_price1k(price_open_diff, pre_diff_base)
                 price_open_diff += pre_diff_base
 
                 pre_diff_base = price_open_diff + price_close_diff
                 klines.append({
                     '时刻': date,
                     '开盘价': price_open,
-                    '收盘价': self._calc_price1k(price_open_diff, price_close_diff),
-                    '最高价': self._calc_price1k(price_open_diff, price_high_diff),
-                    '最低价': self._calc_price1k(price_open_diff, price_low_diff),
+                    '收盘价': _calc_price1k(price_open_diff, price_close_diff),
+                    '最高价': _calc_price1k(price_open_diff, price_high_diff),
+                    '最低价': _calc_price1k(price_open_diff, price_low_diff),
                     '成交量': reader.f32,
                     '成交额': reader.f32,
                     '上涨数': reader.u16,
@@ -180,16 +211,16 @@ class Api:
                 price_close_diff = reader.vint
                 price_high_diff = reader.vint
                 price_low_diff = reader.vint
-                price_open = self._calc_price1k(price_open_diff, pre_diff_base)
+                price_open = _calc_price1k(price_open_diff, pre_diff_base)
                 price_open_diff += pre_diff_base
 
                 pre_diff_base = price_open_diff + price_close_diff
                 klines.append({
                     '时刻': date,
                     '开盘价': price_open,
-                    '收盘价': self._calc_price1k(price_open_diff, price_close_diff),
-                    '最高价': self._calc_price1k(price_open_diff, price_high_diff),
-                    '最低价': self._calc_price1k(price_open_diff, price_low_diff),
+                    '收盘价': _calc_price1k(price_open_diff, price_close_diff),
+                    '最高价': _calc_price1k(price_open_diff, price_high_diff),
+                    '最低价': _calc_price1k(price_open_diff, price_low_diff),
                     '成交量': reader.f32,
                     '成交额': reader.f32,
                 })
@@ -238,7 +269,7 @@ class Api:
         last_price = 0
         trades = []
         for _ in range(count):
-            time = self._get_time(reader)
+            time = _get_time(reader)
             last_price += reader.vint
 
             trades.append({
@@ -252,7 +283,7 @@ class Api:
         return trades
 
     def get_history_transaction_data(self, market: Market, stock: str, start: int, count: int, date: int) -> list[
-        dict[str, Any]]:
+            dict[str, Any]]:
         reader = self._req(
             b'\x0c\x01\x30\x01\x00\x01\x12\x00\x12\x00\xb5\x0f' + struct.pack('<IH6sHH', date, market.value,
                                                                               stock.encode(), start, count))
@@ -261,7 +292,7 @@ class Api:
         reader.skip(4)
         last_price = 0
         for _ in range(count):
-            time = self._get_time(reader)
+            time = _get_time(reader)
             last_price += reader.vint
 
             trades.append({
@@ -345,14 +376,47 @@ class Api:
             'reserved2': reader.f32
         }
 
-    def _format_time(self, timestamp: int) -> str:
-        timestamp = str(timestamp)
-        time = timestamp[:-6] + ':'
-        if int(timestamp[-6:-4]) < 60:
-            time += f'{timestamp[-6:-4]}:{int(timestamp[-4:] * 60) / 10000:06.3f}'
-        else:
-            time += f'{int(int(timestamp[-6:]) * 60 / 1000000):02d}:{(int(timestamp[-6:]) * 60 % 1000000) * 60 / 1000000:06.3f}'
-        return time
+    def read_day_file(self, file: BinaryIO) -> list[DataEntry]:
+        reader = BinaryReader(file)
+        result = []
+        while not reader.eof:
+            result.append(DataEntry(self._get_datetime(self.KLineCategory.KDaily, reader),
+                                    reader.u32,
+                                    reader.u32,
+                                    reader.u32,
+                                    reader.u32,
+                                    reader.f32,
+                                    reader.u32))
+            reader.skip(4)
+        return result
+    
+    def read_minute_file(self, file: BinaryIO) -> list[DataEntry]:
+        reader = BinaryReader(file)
+        result = []
+        while not reader.eof:
+            result.append(DataEntry(self._get_datetime(self.KLineCategory.K1, reader),
+                                    reader.u32 / 100,
+                                    reader.u32 / 100,
+                                    reader.u32 / 100,
+                                    reader.u32 / 100,
+                                    reader.f32,
+                                    reader.u32))
+            reader.skip(4)
+        return result
+
+    def read_minute_lc_file(self, file: BinaryIO) -> list[DataEntry]:
+        reader = BinaryReader(file)
+        result = []
+        while not reader.eof:
+            result.append(DataEntry(self._get_datetime(self.KLineCategory.K1, reader),
+                                    reader.f32,
+                                    reader.f32,
+                                    reader.f32,
+                                    reader.f32,
+                                    reader.f32,
+                                    reader.u32))
+            reader.skip(4)
+        return result
 
     def _get_datetime(self, category: KLineCategory, reader: BinaryReader) -> datetime.datetime:
         if category.value < self.KLineCategory.KDaily.value or category in (
@@ -370,16 +434,6 @@ class Api:
                                      (zipday % 10000) // 100,
                                      zipday % 100,
                                      15)
-
-    def _get_time(self, reader: BinaryReader) -> datetime.time:
-        tminutes = reader.u16
-        return datetime.time(tminutes // 60, tminutes % 60)
-
-    def _calc_price(self, base_value: float, offset: float) -> float:
-        return (base_value + offset) / 100
-
-    def _calc_price1k(self, base_value: float, offset: float) -> float:
-        return (base_value + offset) / 1000
 
     def _req(self, data: bytes) -> BinaryReader:
         self._client.send(data)
@@ -409,4 +463,4 @@ class Api:
 
 if __name__ == '__main__':
     with Api() as api:
-        pprint(api.get_finance_info(Api.Market.SZ, '002532'))
+        pprint(api.read_minute_lc_file(open(R'C:\zd_gdzq\vipdoc\sh\minline\sh000001.lc1', 'rb')))
