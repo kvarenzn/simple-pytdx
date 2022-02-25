@@ -60,14 +60,17 @@ class Api:
         KSeason = 10
         KYear = 11
 
-    _client: socket.socket
+    _client: socket.socket | None
 
     RSP_HEADER_LENGTH = 0x10
 
-    def __init__(self, host: str = '119.147.212.81', port: int = 7709) -> None:
-        self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._client.connect((host, port))
-        self._hello()
+    def __init__(self, server: tuple[str, int] | None = None) -> None:
+        if not server:
+            self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._client.connect((host, port))
+            self._hello()
+        else:
+            self._client = None
 
     def _hello(self) -> None:
         self._req(b'\x0c\x02\x18\x93\x00\x01\x03\x00\x03\x00\x0d\x00\x01')
@@ -436,6 +439,8 @@ class Api:
                                      15)
 
     def _req(self, data: bytes) -> BinaryReader:
+        if not self._client:
+            raise RuntimeError('初始化时未提供服务器地址')
         self._client.send(data)
         return BinaryReader(io.BytesIO(self._recv()))
 
@@ -461,6 +466,4 @@ class Api:
         pass
 
 
-if __name__ == '__main__':
-    with Api() as api:
-        pprint(api.read_minute_lc_file(open(R'C:\zd_gdzq\vipdoc\sh\minline\sh000001.lc1', 'rb')))
+__all__ = ['Api']
