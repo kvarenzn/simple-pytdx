@@ -65,7 +65,8 @@ class Api:
     RSP_HEADER_LENGTH = 0x10
 
     def __init__(self, server: tuple[str, int] | None = None) -> None:
-        if not server:
+        if server:
+            host, port = server
             self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._client.connect((host, port))
             self._hello()
