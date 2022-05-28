@@ -45,11 +45,33 @@ class BinaryReader:
     def skip(self, size: int) -> int:
         return self._io.seek(size, io.SEEK_CUR)
 
+
+    # vint：Variable-length INTeger，变长整数
+    # 不确定TDX内部管这种格式叫什么，先暂且这么称呼
+    # 该格式使用不定长个字节存储一个整数
+    # 为便于说明，第一个字节称为首字节，剩下的字节称为尾字节
+    
+    # 首字节格式
+    # +---+---+---+---+---+---+---+---+
+    # | A | B | C | D | E | F | G | H |
+    # +---+---+---+---+---+---+---+---+
+    # A 表示该字节后续是否还有字节：1表示后续还有，0表示这个字节就是最后一个
+    # B 表示该整数的符号：1表示有负号，0表示没有
+    # C~H 表示该变长整数的最初的6个比特
+    
+    # 尾字节格式
+    # +---+---+---+---+---+---+---+---+
+    # | A | B | C | D | E | F | G | H |
+    # +---+---+---+---+---+---+---+---+
+    # A 同首字节的A
+    # B~H 表示该变长整数中的7个比特
+
+    # 变长整数存储时为倒序存储：首字节表示的数据为最低位，最后一个字节表示的数据为最高位
     @property
     def vint(self) -> int:
         byte = self.u8
         result = byte & 0x3f
-        sign = not bool(byte & 0x40)
+        sign = bool(byte & 0x40)
         pos_byte = 6
 
         while byte & 0x80:
@@ -57,7 +79,7 @@ class BinaryReader:
             result += (byte & 0x7f) << pos_byte
             pos_byte += 7
 
-        return result * (sign * 2 - 1)
+        return -result if sign else result
 
     def str(self, encoding: str = 'gbk') -> str:
         result = bytearray()
