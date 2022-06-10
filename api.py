@@ -64,10 +64,11 @@ class Api:
 
     RSP_HEADER_LENGTH = 0x10
 
-    def __init__(self, server: tuple[str, int] | None = None) -> None:
+    def __init__(self, server: tuple[str, int] | None = None, connection_timeout: float = 1.0) -> None:
         if server:
             host, port = server
             self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._client.settimeout(connection_timeout)
             self._client.connect((host, port))
             self._hello()
         else:
@@ -178,7 +179,7 @@ class Api:
                                        1,
                                        start, count,
                                        0, 0, 0))
-        try:  # 指数
+        try:  # 尝试作为指数
             count = reader.u16
             klines = []
             pre_diff_base = 0
@@ -451,14 +452,20 @@ class Api:
     def _recv(self) -> bytes:
         recv = self._client.recv(self.RSP_HEADER_LENGTH)
         _r1, _r2, _r3, zipped_size, unzipped_size = struct.unpack('<IIIHH', recv)
-        data = bytes()
+        data = bytearray()
         remained_size = zipped_size
         while remained_size > 0:
-            data += self._client.recv(remained_size)
-            remained_size -= len(data)
+            tmp_data = self._client.recv(remained_size)
+            remained_size -= len(tmp_data)
+            data.extend(tmp_data)
         if zipped_size != unzipped_size:
             data = zlib.decompress(data)
         return data
+    
+    def heartbeat(self) -> None:
+        # 发送心跳包
+        # 无需理会返回结果
+        self.get_stocks_count(self.Market.SH)
 
     def __enter__(self) -> 'Api':
         return self
