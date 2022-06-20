@@ -45,7 +45,6 @@ class BinaryReader:
     def skip(self, size: int) -> int:
         return self._io.seek(size, io.SEEK_CUR)
 
-
     # vint：Variable-length INTeger，变长整数
     # 不确定TDX内部管这种格式叫什么，先暂且这么称呼
     # 该格式使用不定长个字节存储一个整数
@@ -101,3 +100,6 @@ class BinaryReader:
             fmt = self._SUPPORTED_TYPES[item]
             return struct.unpack('><'[self._big_endian] + fmt, self._io.read(struct.calcsize(fmt)))[0]
         raise AttributeError
+
+    def __len__(self):
+        return self._file_size

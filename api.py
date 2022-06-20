@@ -32,6 +32,7 @@ def _calc_price(base_value: float, offset: float) -> float:
 def _calc_price1k(base_value: float, offset: float) -> float:
     return (base_value + offset) / 1000
 
+
 class DataEntry(NamedTuple):
     date: datetime.datetime
     price_open: float
@@ -40,6 +41,7 @@ class DataEntry(NamedTuple):
     price_close: float
     amount: float
     volume: float
+
 
 class Api:
     class Market(Enum):
@@ -59,6 +61,22 @@ class Api:
         KDay = 9
         KSeason = 10
         KYear = 11
+
+    class XDXRCategory(Enum):
+        除权除息 = 1
+        送配股上市 = 2
+        非流通股上市 = 3
+        未知股本变动 = 4
+        股本变化 = 5
+        增发新股 = 6
+        股份回购 = 7
+        增发新股上市 = 8
+        转配股上市 = 9
+        可转债上市 = 10
+        扩缩股 = 11
+        非流通股缩股 = 12
+        送认购权证 = 13
+        送认沽权证 = 14
 
     _client: socket.socket | None
 
@@ -170,7 +188,7 @@ class Api:
         return stocks
 
     def get_k_line(self, category: KLineCategory, market: Market, stock: str, start: int, count: int) -> list[
-            dict[str, Any]]:
+        dict[str, Any]]:
         reader = self._req(struct.pack('<HIHHHH6sHHHHIIH',
                                        0x10c, 0x01016408, 0x1c, 0x1c, 0x052d,
                                        market.value,
@@ -288,7 +306,7 @@ class Api:
         return trades
 
     def get_history_transaction_data(self, market: Market, stock: str, start: int, count: int, date: int) -> list[
-            dict[str, Any]]:
+        dict[str, Any]]:
         reader = self._req(
             b'\x0c\x01\x30\x01\x00\x01\x12\x00\x12\x00\xb5\x0f' + struct.pack('<IH6sHH', date, market.value,
                                                                               stock.encode(), start, count))
@@ -335,6 +353,60 @@ class Api:
         _ = reader.read(10)
         length = reader.u16
         return reader.read(length).decode('gbk')
+
+    def get_xdxr_info(self, market: Market, stock: str) -> list[dict[str, Any]]:
+        reader = self._req(
+            b'\x0c\x1f\x18\x76\x00\x01\x0b\x00\x0b\x00\x0f\x00\x01\x00' + struct.pack('<B6s', market.value,
+                                                                                      stock.encode()))
+        if len(reader) < 11:
+            return []
+
+        _market = self.Market(reader.u8)
+        reader.skip(2)
+        _code = reader.read(6).decode()
+
+        result = []
+
+        for _ in range(reader.u16):
+            reader.skip(1 + 7)
+            date = self._get_datetime(self.KLineCategory.KDay, reader)
+            category = self.XDXRCategory(reader.u8)
+            entry = {
+                '日期': date,
+                '类型': category,
+            }
+            match category:
+                case self.XDXRCategory.除权除息:
+                    entry |= {
+                        '分红': reader.f32,
+                        '配股价': reader.f32,
+                        '送转股': reader.f32,
+                        '配股': reader.f32
+                    }
+                case self.XDXRCategory.扩缩股 | self.XDXRCategory.非流通股缩股:
+                    entry |= {
+                        'rev1': reader.f32,
+                        'rev2': reader.f32,
+                        '缩股': reader.f32,
+                        'rev3': reader.f32
+                    }
+                case self.XDXRCategory.送认购权证 | self.XDXRCategory.送认沽权证:
+                    entry |= {
+                        '行权价': reader.f32,
+                        'rev1': reader.f32,
+                        '分数': reader.f32,
+                        'rev2': reader.f32
+                    }
+                case _:
+                    entry |= {
+                        '盘前流通': reader.f32,
+                        '前总股本': reader.f32,
+                        '盘后流通': reader.f32,
+                        '后总股本': reader.f32
+                    }
+            result.append(entry)
+
+        return result
 
     def get_finance_info(self, market: Market, stock: str):
         reader = self._req(
@@ -394,7 +466,7 @@ class Api:
                                     reader.u32))
             reader.skip(4)
         return result
-    
+
     def read_minute_file(self, file: BinaryIO) -> list[DataEntry]:
         reader = BinaryReader(file)
         result = []
@@ -461,7 +533,7 @@ class Api:
         if zipped_size != unzipped_size:
             data = zlib.decompress(data)
         return data
-    
+
     def heartbeat(self) -> None:
         # 发送心跳包
         # 无需理会返回结果
