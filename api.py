@@ -4,7 +4,6 @@ import struct
 import zlib
 from enum import Enum
 from typing import Any, BinaryIO, NamedTuple
-from pprint import pprint
 import datetime
 
 from binary_reader import BinaryReader
@@ -63,20 +62,20 @@ class Api:
         KYear = 11
 
     class XDXRCategory(Enum):
-        除权除息 = 1
-        送配股上市 = 2
-        非流通股上市 = 3
-        未知股本变动 = 4
-        股本变化 = 5
-        增发新股 = 6
-        股份回购 = 7
-        增发新股上市 = 8
-        转配股上市 = 9
-        可转债上市 = 10
-        扩缩股 = 11
-        非流通股缩股 = 12
-        送认购权证 = 13
-        送认沽权证 = 14
+        ExcludeRightAndExcludeDividen = 1  # 除权除息
+        AllotmentSharesListing = 2  # 送配股上市
+        NonMarketableSharesListing = 3  # 非流通股上市
+        UnknownChangesInShareCapital = 4  # 未知股本变动
+        ChangesInShareCapital = 5  # 股本变动
+        AdditionalIssuanceOfNewShares = 6  # 增发新股
+        ShareRepurchase = 7  # 股份回购
+        AdditionalSharesListing = 8  # 增发新股上市
+        AllottedSharesListing = 9  # 转配股上市
+        ConvertibleBondsListing = 10  # 可转债上市
+        StockExpansionAndContraction = 11  # 扩缩股
+        ReductionOfNonTradableShares = 12  # 非流通股缩股
+        SendWarrant = 13  # 送认购权证
+        SendPutWarrant = 14  # 送认沽权证
 
     _client: socket.socket | None
 
@@ -376,21 +375,21 @@ class Api:
                 '类型': category,
             }
             match category:
-                case self.XDXRCategory.除权除息:
+                case self.XDXRCategory.ExcludeRightAndExcludeDividen:
                     entry |= {
                         '分红': reader.f32,
                         '配股价': reader.f32,
                         '送转股': reader.f32,
                         '配股': reader.f32
                     }
-                case self.XDXRCategory.扩缩股 | self.XDXRCategory.非流通股缩股:
+                case self.XDXRCategory.StockExpansionAndContraction | self.XDXRCategory.ReductionOfNonTradableShares:
                     entry |= {
                         'rev1': reader.f32,
                         'rev2': reader.f32,
                         '缩股': reader.f32,
                         'rev3': reader.f32
                     }
-                case self.XDXRCategory.送认购权证 | self.XDXRCategory.送认沽权证:
+                case self.XDXRCategory.SendWarrant | self.XDXRCategory.SendPutWarrant:
                     entry |= {
                         '行权价': reader.f32,
                         'rev1': reader.f32,
