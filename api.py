@@ -10,12 +10,12 @@ from binary_reader import BinaryReader
 
 
 def _format_time(timestamp: int) -> str:
-    timestamp = str(timestamp)
-    time = timestamp[:-6] + ':'
-    if int(timestamp[-6:-4]) < 60:
-        time += f'{timestamp[-6:-4]}:{int(timestamp[-4:] * 60) / 10000:06.3f}'
+    ts = str(timestamp)
+    time = ts[:-6] + ':'
+    if int(ts[-6:-4]) < 60:
+        time += f'{ts[-6:-4]}:{int(ts[-4:] * 60) / 10000:06.3f}'
     else:
-        time += f'{int(int(timestamp[-6:]) * 60 / 1000000):02d}:{(int(timestamp[-6:]) * 60 % 1000000) * 60 / 1000000:06.3f}'
+        time += f'{int(int(ts[-6:]) * 60 / 1000000):02d}:{(int(ts[-6:]) * 60 % 1000000) * 60 / 1000000:06.3f}'
     return time
 
 
@@ -133,12 +133,12 @@ class Api:
         reader = self._req(package)
         reader.skip(2)
         stocks_count = reader.u16
-        stocks = []
+        result = []
 
         for _ in range(stocks_count):
             market, stock, active1 = struct.unpack('<B6sH', reader.read(9))
             price = reader.vint
-            stocks.append({
+            result.append({
                 '市场': self.Market(market),
                 '股票代码': stock,
                 'active1': active1,
@@ -184,7 +184,7 @@ class Api:
                 '增速': reader.i16 / 100,
                 'active2': reader.u16
             })
-        return stocks
+        return result
 
     def get_k_line(self, category: KLineCategory, market: Market, stock: str, start: int, count: int) -> list[
         dict[str, Any]]:
@@ -515,12 +515,6 @@ class Api:
         if not self._client:
             raise RuntimeError('初始化时未提供服务器地址')
         self._client.send(data)
-        return BinaryReader(io.BytesIO(self._recv()))
-
-    def _send(self, data: bytes) -> int:
-        return self._client.send(data)
-
-    def _recv(self) -> bytes:
         recv = self._client.recv(self.RSP_HEADER_LENGTH)
         _r1, _r2, _r3, zipped_size, unzipped_size = struct.unpack('<IIIHH', recv)
         data = bytearray()
@@ -531,7 +525,7 @@ class Api:
             data.extend(tmp_data)
         if zipped_size != unzipped_size:
             data = zlib.decompress(data)
-        return data
+        return BinaryReader(io.BytesIO(data))
 
     def heartbeat(self) -> None:
         # 发送心跳包

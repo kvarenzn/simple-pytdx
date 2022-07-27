@@ -80,7 +80,7 @@ class BinaryReader:
 
         return -result if sign else result
 
-    def str(self, encoding: str = 'gbk') -> str:
+    def cstr(self, encoding: str = 'gbk') -> str:
         result = bytearray()
         while char := self._io.read(1)[0]:
             result.append(char)
